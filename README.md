@@ -1,13 +1,13 @@
 # GOT-FOLLOWALONG
 
-A Game of Thrones episode companion: spoiler-free/spoiler synopses, a live Westeros map, illustrated character portraits, watched-episode tracking, and per-episode notes.
+A Game of Thrones episode companion: spoiler-free/spoiler synopses, active-location view, illustrated character portraits, watched-episode tracking, and per-episode notes.
 
 ## Stack
 
 - React 18 + Vite (frontend)
 - Express (serves the built frontend in production)
 
-Character portraits are static SVGs generated once by `scripts/generate-portraits.mjs` and committed under `public/portraits/`. There's no external API or API key involved — everything runs locally and on Railway with no configuration.
+Character portraits are now rendered as inline SVGs in `src/components/GOTCompanionExpanded.jsx`. There is no external image API or API key involved — everything runs locally and on Railway with no configuration.
 
 ## Local development
 
@@ -27,16 +27,8 @@ npm start
 
 `npm start` runs the Express server, which serves the built static files from `dist/` on `PORT` (defaults to `3001`).
 
-## Deploying to Railway
+## Character portraits and roster
 
-1. Create a new Railway project from this repo.
-2. Railway auto-detects Node via Nixpacks and uses `railway.json`, which runs `npm install`, `npm run build`, then `npm start`.
-3. Railway injects `PORT` automatically — the server already reads `process.env.PORT`, so no extra config is needed.
+To add or adjust character art, edit the inline `Avatar` component in `src/components/GOTCompanionExpanded.jsx`. To add more characters, update the `P` people map and the episode character arrays in the same file.
 
-## Regenerating character portraits
-
-```bash
-node scripts/generate-portraits.mjs
-```
-
-Edit the `CHARACTERS` roster in that script to add/adjust characters, then re-run it to refresh the SVGs in `public/portraits/`.
+The older `scripts/generate-portraits.mjs` script and committed files under `public/portraits/` are still present as a static-export helper, but the live app now uses generated inline SVG portraits instead of those static files.
