@@ -1,1 +1,0 @@
-Real portrait image assets are stored in this folder. Use filenames matching the app slug, for example jon-snow.jpg.
