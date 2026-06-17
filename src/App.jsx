@@ -1,1 +1,5 @@
-import GOTCompanionExpanded from './components/GOTCompanionExpanded.jsx'; export default function App(){return <GOTCompanionExpanded/>;}
+import GOTCompanion from "./components/GOTCompanion.jsx";
+
+export default function App() {
+  return <GOTCompanion />;
+}
