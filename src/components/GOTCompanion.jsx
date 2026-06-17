@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { slugify } from "../utils/slug.js";
 
 const LOCATIONS = {
   winterfell:   { x: 310, y: 148, label: "Winterfell" },
@@ -329,88 +330,30 @@ function WesterosMap({ activeLocations, focusLocation }) {
   );
 }
 
-// ── AI CHARACTER PORTRAIT ─────────────────────────────────────────────────────
+// ── CHARACTER PORTRAIT ────────────────────────────────────────────────────────
 
-const portraitCache = {};
-
-function Portrait({ character, autoLoad }) {
-  const [state, setState] = useState("idle"); // idle | loading | done | error
-  const [imgUrl, setImgUrl] = useState(null);
-  const key = character.name;
-
-  function load() {
-    if (state === "loading") return;
-    if (portraitCache[key]) { setImgUrl(portraitCache[key]); setState("done"); return; }
-    setState("loading");
-    const hc = HOUSE_COLORS[character.house] || HOUSE_COLORS["—"];
-    fetch("/api/portrait", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: character.name,
-        house: character.house,
-        role: character.role,
-        accent: hc.accent,
-        badge: hc.badge,
-      })
-    })
-    .then(r => r.ok ? r.json() : Promise.reject(new Error("request failed")))
-    .then(data => {
-      if (data.svg) {
-        const blob = new Blob([data.svg], { type: "image/svg+xml" });
-        const url = URL.createObjectURL(blob);
-        portraitCache[key] = url;
-        setImgUrl(url);
-        setState("done");
-      } else {
-        setState("error");
-      }
-    })
-    .catch(() => setState("error"));
-  }
-
-  useEffect(() => { if (autoLoad) load(); }, [autoLoad, key]);
-
+function Portrait({ character }) {
+  const [broken, setBroken] = useState(false);
   const hc = HOUSE_COLORS[character.house] || HOUSE_COLORS["—"];
   const initials = character.name.split(" ").map(w => w[0]).join("").slice(0,2);
+  const src = `/portraits/${slugify(character.name)}.svg`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 88 }}>
       <div
-        onClick={() => state === "idle" || state === "error" ? load() : null}
         style={{
           width: 68, height: 88, borderRadius: 6, overflow: "hidden",
           border: `2px solid ${hc.accent}50`,
           background: `linear-gradient(160deg, ${hc.bg}, #0d0d0d)`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: state === "idle" || state === "error" ? "pointer" : "default",
           boxShadow: `0 0 10px ${hc.accent}15`,
           position: "relative",
         }}>
-        {state === "done" && imgUrl && (
-          <img src={imgUrl} alt={character.name} style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
-        )}
-        {state === "loading" && (
-          <div style={{ textAlign: "center" }}>
-            <div style={{
-              width: 18, height: 18, borderRadius: "50%",
-              border: `2px solid ${hc.accent}30`, borderTop: `2px solid ${hc.accent}`,
-              animation: "spin 1s linear infinite", margin: "0 auto 3px",
-            }}/>
-            <div style={{ fontSize: 6, color: hc.accent, opacity: 0.7 }}>painting…</div>
-          </div>
-        )}
-        {state === "idle" && (
-          <div style={{ textAlign: "center", padding: 4 }}>
-            <div style={{ fontSize: 18, fontWeight: "bold", color: hc.accent, opacity: 0.6, marginBottom: 2 }}>{initials}</div>
-            <div style={{ fontSize: 7, color: hc.accent, opacity: 0.5 }}>tap for portrait</div>
-          </div>
-        )}
-        {state === "error" && (
-          <div style={{ textAlign: "center", padding: 4 }}>
-            <div style={{ fontSize: 16, color: hc.accent, opacity: 0.4 }}>{initials}</div>
-            <div style={{ fontSize: 6, color: "#8b2020" }}>retry</div>
-          </div>
+        {broken ? (
+          <div style={{ fontSize: 18, fontWeight: "bold", color: hc.accent, opacity: 0.6 }}>{initials}</div>
+        ) : (
+          <img src={src} alt={character.name} onError={() => setBroken(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
         )}
       </div>
       <div style={{ textAlign: "center" }}>
@@ -446,7 +389,6 @@ export default function GOTCompanion() {
   const [notes, setNotes] = useState({});
   const [noteInput, setNoteInput] = useState("");
   const [hypeIdx, setHypeIdx] = useState(0);
-  const [loadPortraits, setLoadPortraits] = useState(false);
 
   const ep = episodes[season]?.[episode];
   const epKey = `s${season}e${episode}`;
@@ -454,7 +396,6 @@ export default function GOTCompanion() {
 
   useEffect(() => {
     setTab("overview");
-    setLoadPortraits(false);
     setHypeIdx(Math.floor(Math.random() * HYPE.length));
   }, [season, episode]);
 
@@ -483,7 +424,6 @@ export default function GOTCompanion() {
       paddingBottom: 48,
     }}>
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
         select, input, button { font-family: inherit; }
       `}</style>
 
@@ -547,7 +487,7 @@ export default function GOTCompanion() {
             {/* Tabs */}
             <div style={{ display: "flex", borderBottom: "1px solid #2a1a0a" }}>
               {TABS.map(t => (
-                <button key={t} onClick={() => { setTab(t); if (t === "characters") setLoadPortraits(true); }}
+                <button key={t} onClick={() => setTab(t)}
                   style={{
                     flex: 1, background: tab === t ? "#2a1505" : "transparent", border: "none",
                     borderBottom: tab === t ? "2px solid #8b6914" : "2px solid transparent",
@@ -613,20 +553,9 @@ export default function GOTCompanion() {
               {/* CHARACTERS */}
               {tab === "characters" && (
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <div style={{ fontSize: 8, color: "#6b5c3e", textTransform: "uppercase", letterSpacing: 2 }}>Characters — AI Illustrated Portraits</div>
-                    {!loadPortraits && (
-                      <button onClick={() => setLoadPortraits(true)} style={{
-                        background: "#2a1505", border: "1px solid #8b6914", color: "#c9a84c",
-                        padding: "4px 10px", borderRadius: 4, fontSize: 9, cursor: "pointer",
-                      }}>Generate All</button>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 9, color: "#3d2b0a", marginBottom: 12, fontStyle: "italic" }}>
-                    {loadPortraits ? "Generating portraits via AI — each takes a moment…" : "Tap a portrait or click Generate All to paint the characters."}
-                  </div>
+                  <div style={{ fontSize: 8, color: "#6b5c3e", textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>Characters in This Episode</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-                    {ep.characters.map(c => <Portrait key={c.name} character={c} autoLoad={loadPortraits}/>)}
+                    {ep.characters.map(c => <Portrait key={c.name} character={c}/>)}
                   </div>
                 </div>
               )}
